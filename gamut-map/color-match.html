@@ -1,0 +1,57 @@
+<!DOCTYPE HTML>
+<html lang="en">
+ <head>
+<title>Color matching demo</title>
+<script>
+  function demo() {
+    var element = document.getElementById('myCanvas');
+    var context = element.getContext('2d', {colorSpace:'display-p3'});
+    // var data = new ImageData(256, 256, {colorSpace:'display-p3'});
+    // var i;
+    // for (i = 0; i < data.width*data.height; ++i) {
+    //   data.data[4*i+0] = 255;
+    //   data.data[4*i+1] = 0;
+    //   data.data[4*i+2] = 0;
+    //   data.data[4*i+3] = 255;
+    // }
+    // context.putImageData(data, 0, 0);
+    // context.fillText('This is a P3 canvas filled with P3(1 0 0)', 24, 24);
+    // console.log(element.toDataURL());
+    context.fillStyle = 'color(display-p3 1 0 0)';
+    context.fillRect(0, 0, 256, 256);
+  }
+</script>
+<style>
+div {
+  position: fixed;
+  top: 200px;
+  left: 200px;
+  width: 200px;
+  /* With gamut mapping to sRGB, display-p3(1 0 0) would map to
+  background-color: rgb(100.000000% 20.348018% 15.877203%) */
+  background-color: color(display-p3 1 0 0)
+}
+img {
+  position: fixed;
+  top: 128px;
+  left: 300px;
+}
+canvas {
+  position: fixed;
+  top: 128px;
+  left: 32px;
+}
+</style>
+</head>
+
+<body onload="demo()">
+<p> <canvas id='myCanvas' width='256' height='256'></canvas> </p>
+<img width=256 height=256 src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABJGlDQ1BTa2lhAAAokX2Rv0vDQBiGH0sXpQ6ig4NDxi5KVeiiLlUIOkms0OqUpmkV2houKdXZ1T+im7OjCJ27CILgJP4N4uAa37RDAqW+x3f33Mt3P747yK0j5UvQ7UXGsStWrX5hkZHrhQHztQC/H0kP75v/5M3TYtMPPY3fisjocG3ZFK+1p3ybcGPKDwmbqnMoHoqL7Qw3MjyIgkg8TvK9wCT8Kd7vdvpeem8Kfu/8TGNNsUGIg00FiyoGl56cFr7YYsA1EVeiI1FIQEcZd5qfsqve1qxLXzkzSt/z/gsORnEcv6TeyQieyrD0nHrFPVgpwPg1cI07sfKKXKsFP4+wXIfVN625nD0j/Ys5tVqTWm1u1NqqwpdzrFo9tkQ7lNim/AfUy02wCLYnZAAAAC9JREFUWEft0EERAAAMwjDwL3qTwSdV0EsvuQyrAQIECBAgQIAAAQIECBAgQGAt8KW+P+F3psuIAAAAAElFTkSuQmCC'></img>
+<div>
+This is a div with a P3(1,0,0) background!
+</div>
+<p>On the left is a P3 canvas filled with the color P3(1,0,0).</p>
+<p>In the center is a div with a P3(1,0,0) background.</p>
+<p>On the right is a P3 image with the color P3(1,0,0).</p>
+</body>
+</html>
