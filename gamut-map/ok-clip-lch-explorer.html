@@ -116,7 +116,7 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
     ctx2.fillStyle = "grey";
     ctx2.fillRect(0, 0, 400, 400);
 
-    let settings = {colorSpace:'srgb'};
+    let settings = {colorSpace:'display-p3'};
 
     const canvas_rec2020 = document.getElementById('cjs-rec2020');
     const ctx_rec2020 = canvas_rec2020.getContext('2d', settings);
