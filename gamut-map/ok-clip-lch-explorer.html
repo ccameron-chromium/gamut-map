@@ -66,26 +66,20 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
         <th>CIE LCH, ΔE2000</th>
     </tr>
     <tr>
-        <td><canvas id="cjs-rec2020" width="400" height="400"></canvas></td>
-        <td><canvas id="cjs-p3" width="400" height="400"></canvas></td>
         <td><canvas id="cjs-srgb" width="400" height="400"></canvas></td>
+        <td><canvas id="cjs-p3" width="400" height="400"></canvas></td>
+        <td><canvas id="cjs-rec2020" width="400" height="400"></canvas></td>
     </tr>
     <tr>
-        <th>CIE LCH, ΔE2000, clipped after Rec2020</th>
-        <th>CIE LCH, ΔE2000, clipped after P3</th>
-        <th>CIE LCH, ΔE2000, clipped after sRGB</th>
+        <th>Gamut mapped to sRGB</th>
+        <th>Gamut mapped to P3</th>
+        <th>Gamut mapped to Rec2020</th>
     </tr>
 </table>
 
 <p>
     Typical gamut mapping times (mean over for 2,500 mappings ie a 50 x 50 grid):
 </p>
-
-<ul>
-    <li>oklch+MINDE: 75μs</li>
-    <li>clip: 4μs</li>
-    <li>LCH: 230μs</li>
-</ul>
 
 <script type="module">
     import Color from "https://colorjs.io/color.js";
@@ -111,11 +105,6 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
     ctx3.fillStyle = "grey";
     ctx3.fillRect(0, 0, 400, 400);
 
-    const canvas2 = document.getElementById('cjs');
-    const ctx2 = canvas2.getContext('2d');
-    ctx2.fillStyle = "grey";
-    ctx2.fillRect(0, 0, 400, 400);
-
     let settings = {colorSpace:'display-p3'};
 
     const canvas_rec2020 = document.getElementById('cjs-rec2020');
@@ -129,22 +118,20 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
 
     render_ok();
     render_clip();
-    render_cjs();
 
-    render_cjs_intermediate_clip(ctx_srgb, 'srgb', 0.5);
-    render_cjs_intermediate_clip(ctx_p3, 'p3', 0.5);
-    render_cjs_intermediate_clip(ctx_rec2020, 'rec2020', 0.5);
+    render_intermediate_clip(ctx_srgb, 'srgb', 0.5);
+    render_intermediate_clip(ctx_p3, 'p3', 0.5);
+    render_intermediate_clip(ctx_rec2020, 'rec2020', 0.5);
 
     lightness.addEventListener("change", evt => {
         let L = lightness.value / 100;
         Light.textContent = L;
         render_ok(L);
         render_clip(L);
-        render_cjs(L);
 
-        render_cjs_intermediate_clip(ctx_srgb, 'srgb', L);
-        render_cjs_intermediate_clip(ctx_p3, 'p3', L);
-        render_cjs_intermediate_clip(ctx_rec2020, 'rec2020', L);
+        render_intermediate_clip(ctx_srgb, 'srgb', L);
+        render_intermediate_clip(ctx_p3, 'p3', L);
+        render_intermediate_clip(ctx_rec2020, 'rec2020', L);
     });
 
     function render_ok(L=0.5) {
@@ -184,7 +171,7 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
         console.log("clip: " + timeTaken + "ms");
     }
 
-    function render_cjs_intermediate_clip(ctx, clipGamut, L=0.5) {
+    function render_intermediate_clip(ctx, clipGamut, L=0.5) {
         var imageData = new ImageData(50, 50, {colorSpace:'display-p3', storageFormat:'uint8'});
         ctx.canvas.width = imageData.width;
         ctx.canvas.height = imageData.height;
@@ -203,7 +190,8 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
                 let OKLab2 = {space: "oklab", coords: [L, a, b]};
                 let color = to(OKLab2, 'p3');
                 let start2 = performance.now();
-                toGamut(color, clipGamut);
+                color = CSSgamutMapInLab(color, clipGamut);
+                color = clip(color, 'p3');
 
                 let offset = 4*(x + y * imageData.width);
                 imageData.data[offset + 0] = color.coords[0] * 255 + 0.5;
@@ -213,26 +201,6 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
             }
         }
         ctx.putImageData(imageData, 0, 0);
-    }
-
-    function render_cjs(L=0.5) {
-        // using current color.js GMA,
-        // in default CIE LCH, dE2000
-
-        let timeTaken2 = 0;
-
-        for (let a = -0.4; a <= 0.4; a+=0.016) {
-            for (let b = -0.4; b <= 0.4; b+=0.016) {
-                let OKLab2 = {space: "oklab", coords: [L, a, b]};
-                let color = to(OKLab2, 'srgb');
-                let start2 = performance.now();
-                toGamut(color, 'srgb');
-                timeTaken2 += performance.now() - start2;
-                plotok(ctx2, color, a, b);
-            }
-        }
-
-        console.log("colorjs GMA: " + timeTaken2 + "ms");
     }
 
     function plotok (context, color, a, b) {
@@ -246,6 +214,34 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
         context.fillRect(t, l, 8, 8);
     }
 
+    function CSSgamutMapInLab (origin, destination) {
+        let origin_OKLab = to(origin, 'oklab');
+        let L = origin_OKLab.coords[0];
+
+        // if (L >= 1) return {space: destination, coords: [1, 1, 1], alpha: origin.alpha};
+        if (L <= 0)
+          return {space: destination, coords: [0, 0, 0], alpha: origin.alpha};
+
+        if (inGamut(origin, destination))
+          return to(origin, destination);
+
+        // set up for OKLCH chroma reduction
+        let alpha_min = 0;
+        let alpha_max = 1;
+
+        let current = clone(origin_OKLab);
+        for (let i = 0; i <= 40; i += 1) {
+          let alpha_mid = (alpha_min + alpha_max) / 2;
+          current.coords[1] = alpha_mid * origin_OKLab.coords[1];
+          current.coords[2] = alpha_mid * origin_OKLab.coords[2];
+
+          if (inGamut(current, destination))
+            alpha_min = alpha_mid;
+          else
+            alpha_max = alpha_mid;
+        }
+        return to(current, destination);
+    }
 
     function CSSgamutMap (origin, destination) {
         // OKLCH is the CSS GMA working space
