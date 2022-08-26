@@ -30,18 +30,19 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
 </p>
 
 <p>
-    Explore a constant-lightness plane of OKLab
-    (which includes out of gamut colors,
-    and indeed imaginary colors),
-    mapped to sRGB using (on the left) the
-    proposed new CSS Color 4 GMA
-    which operates in OKLCH with detaEOK
-    and avoids un-needed deltaE calls.
+    The top row is some of the original code.
 </p>
 
 <p>
-    In the middle, simple coordinate clipping
-    (fast, but severe hue and lightness shifts).
+    For the lower two rows: 
+    The left column shows gamut mapping to sRGB.
+    The middle column shows gamut mapping to P3.
+    The right column shows gamut mapping to Rec2020.
+</p>
+
+<p>
+    The middle row is clipped to sRGB after the gamut mapping.
+    The middle row is clipped to P3 after the gamut mapping.
 </p>
 
 <p>
@@ -58,22 +59,32 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
     <tr>
         <td><canvas id="ok" width="400" height="400"></canvas></td>
         <td><canvas id="clip" width="400" height="400"></canvas></td>
-        <td><canvas id="cjs" width="400" height="400"></canvas></td>
+        <td><canvas id="gamut" width="400" height="400"></canvas></td>
     </tr>
     <tr>
         <th>OKLCH, ΔEOK</th>
         <th>Clip</th>
-        <th>CIE LCH, ΔE2000</th>
+        <th>Gamut: ≤sRGB:Red, ≤P3:Green, ≤Rec2020:Blue</th>
     </tr>
     <tr>
-        <td><canvas id="cjs-srgb" width="400" height="400"></canvas></td>
-        <td><canvas id="cjs-p3" width="400" height="400"></canvas></td>
-        <td><canvas id="cjs-rec2020" width="400" height="400"></canvas></td>
+        <td><canvas id="cjs-srgb-srgb" width="400" height="400"></canvas></td>
+        <td><canvas id="cjs-p3-srgb" width="400" height="400"></canvas></td>
+        <td><canvas id="cjs-rec2020-srgb" width="400" height="400"></canvas></td>
     </tr>
     <tr>
-        <th>Gamut mapped to sRGB</th>
+        <th>Gamut mapped to sRGB (same as above)</th>
+        <th>Gamut mapped to P3, clipped to sRGB</th>
+        <th>Gamut mapped to Rec2020, clipped to sRGB</th>
+    </tr>
+    <tr>
+        <td><canvas id="cjs-srgb-p3" width="400" height="400"></canvas></td>
+        <td><canvas id="cjs-p3-p3" width="400" height="400"></canvas></td>
+        <td><canvas id="cjs-rec2020-p3" width="400" height="400"></canvas></td>
+    </tr>
+    <tr>
+        <th>Gamut mapped to sRGB, clipped to P3 (no-op)</th>
         <th>Gamut mapped to P3</th>
-        <th>Gamut mapped to Rec2020</th>
+        <th>Gamut mapped to Rec2020, clipped to P3</th>
     </tr>
 </table>
 
@@ -107,31 +118,47 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
 
     let settings = {colorSpace:'display-p3'};
 
-    const canvas_rec2020 = document.getElementById('cjs-rec2020');
-    const ctx_rec2020 = canvas_rec2020.getContext('2d', settings);
+    const canvas_gamut = document.getElementById('gamut');
+    const ctx_gamut = canvas_gamut.getContext('2d', settings);
 
-    const canvas_p3 = document.getElementById('cjs-p3');
-    const ctx_p3 = canvas_p3.getContext('2d', settings);
+    const canvas_srgb_srgb = document.getElementById('cjs-srgb-srgb');
+    const ctx_srgb_srgb = canvas_srgb_srgb.getContext('2d', settings);
 
-    const canvas_srgb = document.getElementById('cjs-srgb');
-    const ctx_srgb = canvas_srgb.getContext('2d', settings);
+    const canvas_p3_srgb = document.getElementById('cjs-p3-srgb');
+    const ctx_p3_srgb = canvas_p3_srgb.getContext('2d', settings);
 
-    render_ok();
-    render_clip();
+    const canvas_rec2020_srgb = document.getElementById('cjs-rec2020-srgb');
+    const ctx_rec2020_srgb = canvas_rec2020_srgb.getContext('2d', settings);
 
-    render_intermediate_clip(ctx_srgb, 'srgb', 0.5);
-    render_intermediate_clip(ctx_p3, 'p3', 0.5);
-    render_intermediate_clip(ctx_rec2020, 'rec2020', 0.5);
+    const canvas_srgb_p3 = document.getElementById('cjs-srgb-p3');
+    const ctx_srgb_p3 = canvas_srgb_p3.getContext('2d', settings);
+
+    const canvas_p3_p3 = document.getElementById('cjs-p3-p3');
+    const ctx_p3_p3 = canvas_p3_p3.getContext('2d', settings);
+
+    const canvas_rec2020_p3 = document.getElementById('cjs-rec2020-p3');
+    const ctx_rec2020_p3 = canvas_rec2020_p3.getContext('2d', settings);
+
+    function draw(L) {
+      Light.textContent = L;
+      render_ok(L);
+      render_clip(L);
+
+      render_intermediate_clip(ctx_srgb_srgb, 'srgb', 'srgb', L);
+      render_intermediate_clip(ctx_p3_srgb, 'p3', 'srgb', L);
+      render_intermediate_clip(ctx_rec2020_srgb, 'rec2020', 'srgb', L);
+
+      render_intermediate_clip(ctx_srgb_p3, 'srgb', 'p3', L);
+      render_intermediate_clip(ctx_p3_p3, 'p3', 'p3', L);
+      render_intermediate_clip(ctx_rec2020_p3, 'rec2020', 'p3', L);
+
+      render_gamut(ctx_gamut, L);
+    }
+    draw(0.5);
 
     lightness.addEventListener("change", evt => {
         let L = lightness.value / 100;
-        Light.textContent = L;
-        render_ok(L);
-        render_clip(L);
-
-        render_intermediate_clip(ctx_srgb, 'srgb', L);
-        render_intermediate_clip(ctx_p3, 'p3', L);
-        render_intermediate_clip(ctx_rec2020, 'rec2020', L);
+        draw(L);
     });
 
     function render_ok(L=0.5) {
@@ -171,7 +198,7 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
         console.log("clip: " + timeTaken + "ms");
     }
 
-    function render_intermediate_clip(ctx, clipGamut, L=0.5) {
+    function render_intermediate_clip(ctx, mapGamut, clipGamut, L=0.5) {
         var imageData = new ImageData(50, 50, {colorSpace:'display-p3', storageFormat:'uint8'});
         ctx.canvas.width = imageData.width;
         ctx.canvas.height = imageData.height;
@@ -189,14 +216,52 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
                 let b = bMin + x * (bMax - bMin) / imageData.width;
                 let OKLab2 = {space: "oklab", coords: [L, a, b]};
                 let color = to(OKLab2, 'p3');
-                let start2 = performance.now();
-                color = CSSgamutMapInLab(color, clipGamut);
-                color = clip(color, 'p3');
+
+                // Gamut map to mapGamut
+                color = CSSgamutMapInLab(color, mapGamut);
+
+                // Clip to clipGamut
+                color = clip(color, clipGamut);
+
+                // Represent in P3 (cause that's what our ImageData is)
+                color = to(color, 'p3');
 
                 let offset = 4*(x + y * imageData.width);
                 imageData.data[offset + 0] = color.coords[0] * 255 + 0.5;
                 imageData.data[offset + 1] = color.coords[1] * 255 + 0.5;
                 imageData.data[offset + 2] = color.coords[2] * 255 + 0.5;
+                imageData.data[offset + 3] = 255;
+            }
+        }
+        ctx.putImageData(imageData, 0, 0);
+    }
+
+    function render_gamut(ctx, L=0.5) {
+        var imageData = new ImageData(400, 400);
+        ctx.canvas.width = imageData.width;
+        ctx.canvas.height = imageData.height;
+        ctx.canvas.style.width = '400px';
+        ctx.canvas.style.height = '400px';
+
+        let aMin = -0.4;
+        let aMax =  0.4;
+        let bMin = -0.4;
+        let bMax =  0.4;
+
+        for (let x = 0; x < imageData.width; x += 1) {
+            for (let y = 0; y < imageData.height; y += 1) {
+                let a = aMin + y * (aMax - aMin) / imageData.height;
+                let b = bMin + x * (bMax - bMin) / imageData.width;
+                let color = {space: "oklab", coords: [L, a, b]};
+
+                let offset = 4*(x + y * imageData.width);
+                if (inGamut(color, 'srgb')) {
+                  imageData.data[offset + 0] = 255;
+                } else if (inGamut(color, 'p3')) {
+                  imageData.data[offset + 1] = 255;
+                } else if (inGamut(color, 'rec2020')) {
+                  imageData.data[offset + 2] = 255;
+                }
                 imageData.data[offset + 3] = 255;
             }
         }
