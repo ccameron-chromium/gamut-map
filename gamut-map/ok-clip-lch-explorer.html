@@ -52,6 +52,11 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
     with deltaE 2000.
 </p>
 
+<p>
+  <input type="checkbox" id="walkoutCheckbox">
+  <label for="walkoutCheckbox">Walk out by 0.02 from the border</label>
+</p>
+
 
 <p>Lightness: <input type="range" id="lightness"> <span id="out">0.50</span></p>
 
@@ -72,7 +77,7 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
         <td><canvas id="cjs-rec2020-srgb" width="400" height="400"></canvas></td>
     </tr>
     <tr>
-        <th>Gamut mapped to sRGB (same as above)</th>
+        <th>Gamut mapped to sRGB</th>
         <th>Gamut mapped to P3, clipped to sRGB</th>
         <th>Gamut mapped to Rec2020, clipped to sRGB</th>
     </tr>
@@ -100,6 +105,16 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
     import inGamut from "https://colorjs.io/src/inGamut.js";
     import toGamut from "https://colorjs.io/src/toGamut.js";
     import deltaEOK from "https://colorjs.io/src/deltaE/deltaEOK.js";
+/*
+    // Train internet is not what it was claimed to be.
+    import Color from "./color.js/color.js";
+    import serialize from "./color.js/src/serialize.js";
+    import to from "./color.js/src/to.js";
+    import clone from "./color.js/src/clone.js";
+    import inGamut from "./color.js/src/inGamut.js";
+    import toGamut from "./color.js/src/toGamut.js";
+    import deltaEOK from "./color.js/src/deltaE/deltaEOK.js";
+*/
 
     const JND = 0.02;
     const ε = 0.0001;
@@ -139,7 +154,11 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
     const canvas_rec2020_p3 = document.getElementById('cjs-rec2020-p3');
     const ctx_rec2020_p3 = canvas_rec2020_p3.getContext('2d', settings);
 
-    function draw(L) {
+    let sliderL = 0.5;
+    let walkBackEnabled = false;
+
+    function draw() {
+      let L = sliderL;
       Light.textContent = L;
       render_ok(L);
       render_clip(L);
@@ -154,11 +173,11 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
 
       render_gamut(ctx_gamut, L);
     }
-    draw(0.5);
+    draw(sliderL);
 
     lightness.addEventListener("change", evt => {
-        let L = lightness.value / 100;
-        draw(L);
+        sliderL = lightness.value / 100;
+        draw();
     });
 
     function render_ok(L=0.5) {
@@ -290,13 +309,13 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
         if (inGamut(origin, destination))
           return to(origin, destination);
 
-        // set up for OKLCH chroma reduction
+        // First walk to the boundary.
         let alpha_min = 0;
         let alpha_max = 1;
-
+        let alpha_mid = 0.5; // we need to "remember" this value
         let current = clone(origin_OKLab);
         for (let i = 0; i <= 40; i += 1) {
-          let alpha_mid = (alpha_min + alpha_max) / 2;
+          alpha_mid = (alpha_min + alpha_max) / 2;
           current.coords[1] = alpha_mid * origin_OKLab.coords[1];
           current.coords[2] = alpha_mid * origin_OKLab.coords[2];
 
@@ -305,6 +324,28 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
           else
             alpha_max = alpha_mid;
         }
+        let gamutMappedToBorder = clone(current);
+
+        // Then walk away from it by 0.02... but actually not 0.02, we don't want
+        // to walk "too far back".
+        if (walkBackEnabled) {
+          alpha_min = 1;
+          // Setting alpha_max to 1 / alpha_mid prevents walking all the way back.
+          alpha_max = 1 / alpha_mid;
+          for (let i = 0; i <= 20; i += 1) {
+            let alpha_mid = (alpha_min + alpha_max) / 2;
+            current.coords[1] = alpha_mid * gamutMappedToBorder.coords[1];
+            current.coords[2] = alpha_mid * gamutMappedToBorder.coords[2];
+            let clipped = clip(current, destination);
+            let eval_mid = deltaEOK(clipped, current) - 0.02;
+
+            if (eval_mid < 0)
+              alpha_min = alpha_mid;
+            else
+              alpha_max = alpha_mid;
+          }
+        }
+
         return to(current, destination);
     }
 
@@ -376,4 +417,13 @@ lab(50% 125 -125)  =  oklab(65.4% 0.257 -0.35)
 		});
         return destColor;
     }
+
+    function onClickedWalkout() {
+      console.log(walkoutCheckbox.checked)
+      walkBackEnabled = walkoutCheckbox.checked;
+      draw();
+    }
+    let walkoutCheckbox = document.getElementById('walkoutCheckbox');
+    walkoutCheckbox.onclick = onClickedWalkout;
+
     </script>
